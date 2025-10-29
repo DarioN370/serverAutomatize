@@ -1,10 +1,12 @@
 import{ createServer } from 'node:http'
 
-const server = createServer(() => {
-    console.log('oi')
-})
+const server = createServer()
 
-server.listen(3333)
-//localhost:xxxx
+
+
+const port = process.env.PORT || 3333; //localhost:xxxx
+server.listen(port, () => {
+    console.log(`Servidor rodando na porta ${port}`)
+})
 
 console.log('Deu')
