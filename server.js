@@ -1,51 +1,53 @@
-const express = require("express");
-const bodyParser = require("body-parser");
+import express from "express";
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 80;
 
-// Middleware para parsear JSON
-app.use(bodyParser.json());
+// Aceita JSON e x-www-form-urlencoded (Bitrix24 usa urlencoded por padrão)
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true }));
 
-// Variável para controlar duplicações (último evento recebido)
-let ultimoEventoId = null;
-let ultimaRequisicaoTimestamp = 0;
+// Controle de duplicadas
+const seen = new Map();
+const WINDOW_MS = 2000;
 
-// Middleware opcional para evitar duplicadas enviadas rapidamente
-app.use((req, res, next) => {
-  const agora = Date.now();
-  // Ignora requisições repetidas em menos de 1 segundo com o mesmo payload
-  if (
-    JSON.stringify(req.body) === ultimoEventoId &&
-    agora - ultimaRequisicaoTimestamp < 1000
-  ) {
-    console.log("Requisição duplicada ignorada");
-    return res.status(200).send("Duplicada ignorada");
+function isDuplicate(payload) {
+  const key = JSON.stringify(payload  || {});
+  const now = Date.now();
+  const prev = seen.get(key);
+  seen.set(key, now);
+
+  // limpeza de chaves antigas
+  for (const [k, t] of seen) {
+    if (now - t > WINDOW_MS * 5) seen.delete(k);
   }
 
-  ultimoEventoId = JSON.stringify(req.body);
-  ultimaRequisicaoTimestamp = agora;
-  next();
-});
+  return prev && now - prev < WINDOWMS;
+}
 
-// Rota para receber o webhook
 app.post("/webhook", (req, res) => {
-  const evento = req.body;
+  const payload = req.body && Object.keys(req.body).length ? req.body : {};
 
-  console.log("NOVO WEBHOOK DO BITRIX24!");
-  console.log("Evento recebido:", {
-    event: evento.event,
-    handler: evento.handler,
-    data: evento.data,
+  if (isDuplicate(payload)) {
+    console.log("Requisição duplicada ignorada");
+    return res.status(200).end();
+  }
+
+  const event = payload.event ?? null;
+  const handler = payload.handler ?? null;
+
+  console.log("NOVO WEBHOOK DO BITRIX24!", {
+    event,
+    handler,
+    contentType: req.headers["content-type"],
+    keys: Object.keys(payload)
   });
 
-  res.status(200).send("Recebido com sucesso");
+  return res.status(200).send("ok");
 });
 
-// Teste básico para checar se o servidor está rodando
-app.get("/", (req, res) => {
-  res.send("Servidor ativo e recebendo webhooks!");
-});
+app.get("/", (_, res) => res.status(200).send("up"));
+app.all("*", (_, res) => res.status(200).send("ok"));
 
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
