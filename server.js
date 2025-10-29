@@ -70,7 +70,7 @@ app.post('/', async (req, res) => {
       const dealDetails = await fetchResponse.json();
 
       // 6. EXIBIMOS NO CONSOLE (O SEU OBJETIVO!)
-      console.log('--- 5.  DETALHES DO DEAL OBTIDOS! (O SEU PRINT)  ---');
+      console.log('--- 5.  DETALHES DO DEAL OBTIDOS! ---');
       console.log(JSON.stringify(dealDetails, null, 2)); // (Bonitinho igual seu print!)
 
     } catch (error) {
