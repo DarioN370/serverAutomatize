@@ -10,7 +10,8 @@ const port = process.env.PORT || 3333;
 // 4.  A LINHA MÁGICA! 
 // Isso "ensina" o nosso servidor a entender JSON automaticamente.
 // O Bitrix vai mandar JSON, e o Express já vai transformar em um objeto bonitinho.
-app.use(express.json());
+app.use(express.json()); // "Porteiro" que entende JSON
+app.use(express.urlencoded({ extended: true })); //(O { extended: true } é só uma configuração que permite ele entender dados mais complexos. É sempre bom usar).
 
 // 5. [OPCIONAL] Uma rota "GET" para a gente testar no navegador
 // Se você visitar o seu site (ex: http://localhost:3333/), ele vai responder isso.
