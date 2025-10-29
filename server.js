@@ -4,7 +4,8 @@ import express from 'express';
 // (NENHUM OUTRO IMPORT AQUI)
 
 // 2. Inicializamos o Express
-const app = express();
+const app = express(); 
+
 
 // 3. Pegamos a porta do ambiente (usando 3000, como no seu exemplo funcional)
 const port = process.env.PORT || 3000;
