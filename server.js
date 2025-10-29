@@ -1,76 +1,52 @@
-// 1. Trazemos o Express para o projeto
-import express from 'express';
+const express = require("express");
+const bodyParser = require("body-parser");
 
-// <-- ALTERAÇÃO AQUI: Importamos suas lógicas de negócio e banco
-// POR FAVOR, VERIFIQUE SE O NOME DAS PASTAS E ARQUIVOS ESTÁ IDÊNTICO (MAIÚSCULA/MINÚSCULA)
-// O erro 'ERR_MODULE_NOT_FOUND' é 99% de certeza por causa disso.
-// Ex: Se a pasta for 'Models', o import tem que ser './Models/routerEntity.js'
-import { identificarEProcessar } from './models/routerEntity.js';
-import { pool } from './db/conecBD.js';
-
-// <-- ALTERAÇÃO AQUI: Adicionamos a validação do banco de dados
-(async () => {
-  try {
-    await pool.query("SELECT 1");
-    console.log("Conexão com o banco de dados validada com sucesso!");
-  } catch (err) {
-    console.error("Falha ao validar conexão com o banco:", err);
-    process.exit(1); // Encerra o app se o banco falhar
-  }
-})();
-
-// 2. Inicializamos o Express
 const app = express();
+const PORT = process.env.PORT || 8080;
 
-// 3. Pegamos a porta do ambiente (como fizemos antes!)
-// (Mantive a 3333 que você colou, mas 3000 também funcionaria)
-const port = process.env.PORT || 3333;
+// Middleware para parsear JSON
+app.use(bodyParser.json());
 
-// 4. Middlewares para o Express entender os dados
-// Isso "ensina" o nosso servidor a entender JSON.
-app.use(express.json());
-// Isso "ensina" o nosso servidor a entender 'urlencoded' (o formato do Bitrix)
-app.use(express.urlencoded({ extended: true }));
+// Variável para controlar duplicações (último evento recebido)
+let ultimoEventoId = null;
+let ultimaRequisicaoTimestamp = 0;
 
-// 5. Uma rota "GET" para a gente testar no navegador
-app.get('/', (req, res) => {
-  res.send('Meu servidor Bitrix está vivo!');
-});
-
-// 6. A ROTA DO SEU WEBHOOK! 
-// <-- ALTERAÇÃO AQUI: Mudamos de '/webhook' para '/'
-// Seus logs de sucesso (image_f6f404.jpg) mostraram que o Bitrix chama a rota raiz '/'
-app.post('/', (req, res) => {
-  
-  // Os dados do Bitrix já chegam prontos no 'req.body'
-  const data = req.body;
-  
-  console.log('--- NOVO WEBHOOK DO BITRIX! ---');
-  console.log('Dados recebidos:', data); 
-  
-  // 7. AVISO IMPORTANTE (CORREÇÃO DA DUPLICIDADE)
-  // <-- ALTERAÇÃO AQUI: Respondemos OK ao Bitrix IMEDIATAMENTE.
-  // Isso evita que ele dê timeout e mande o webhook de novo.
-  res.status(200).send('OK');
-  console.log('Resposta 200/OK enviada ao Bitrix.');
-  
-  // 8. PROCESSAMENTO (DEPOIS DE RESPONDER)
-  // <-- ALTERAÇÃO AQUI: Adicionamos a lógica de processamento
-  // Agora podemos fazer o trabalho pesado (falar com o banco)
-  // sem nos preocuparmos com o timeout do Bitrix.
-  
-  const evento = data.event;
-
-  if (evento) {
-    console.log('Iniciando processamento do evento:', evento);
-    // Chamamos sua função que fala com o banco
-    identificarEProcessar(evento, data);
-  } else {
-    console.log("Nenhum 'event' encontrado nos dados recebidos.");
+// Middleware opcional para evitar duplicadas enviadas rapidamente
+app.use((req, res, next) => {
+  const agora = Date.now();
+  // Ignora requisições repetidas em menos de 1 segundo com o mesmo payload
+  if (
+    JSON.stringify(req.body) === ultimoEventoId &&
+    agora - ultimaRequisicaoTimestamp < 1000
+  ) {
+    console.log("Requisição duplicada ignorada");
+    return res.status(200).send("Duplicada ignorada");
   }
+
+  ultimoEventoId = JSON.stringify(req.body);
+  ultimaRequisicaoTimestamp = agora;
+  next();
 });
 
-// 9. Ligamos o servidor! (Era 8 no seu código)
-app.listen(port, () => {
-  console.log(`Servidor rodando na porta ${port}`);
+// Rota para receber o webhook
+app.post("/webhook", (req, res) => {
+  const evento = req.body;
+
+  console.log("NOVO WEBHOOK DO BITRIX24!");
+  console.log("Evento recebido:", {
+    event: evento.event,
+    handler: evento.handler,
+    data: evento.data,
+  });
+
+  res.status(200).send("Recebido com sucesso");
+});
+
+// Teste básico para checar se o servidor está rodando
+app.get("/", (req, res) => {
+  res.send("Servidor ativo e recebendo webhooks!");
+});
+
+app.listen(PORT, () => {
+  console.log(`Servidor rodando na porta ${PORT}`);
 });
