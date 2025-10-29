@@ -1,115 +1,73 @@
-// // 1. Trazemos o Express para o projeto
-// import express from 'express';
-
-// // 2. Inicializamos o Express (criamos o nosso "carro")
-// const app = express();
-
-// // 3. Pegamos a porta do ambiente (como fizemos antes!)
-// const port = process.env.PORT || 3333;
-
-// // 4.  A LINHA MÁGICA! 
-// // Isso "ensina" o nosso servidor a entender JSON automaticamente.
-// // O Bitrix vai mandar JSON, e o Express já vai transformar em um objeto bonitinho.
-// app.use(express.json()); // "Porteiro" que entende JSON
-// app.use(express.urlencoded({ extended: true })); //(O { extended: true } é só uma configuração que permite ele entender dados mais complexos. É sempre bom usar).
-
-// // 5. [OPCIONAL] Uma rota "GET" para a gente testar no navegador
-// // Se você visitar o seu site (ex: http://localhost:3333/), ele vai responder isso.
-// app.get('/', (req, res) => {
-//   res.send('Meu servidor Bitrix está vivo! ');
-// });
-
-// // 6.  A ROTA DO SEU WEBHOOK! 
-// // Aqui é onde a mágica do Bitrix acontece.
-// // Estamos dizendo: "Quando o Bitrix mandar dados (via POST) para a rota /webhook..."
-// app.post('/webhook', (req, res) => {
-//   console.log('---  NOVO WEBHOOK DO BITRIX!  ---');
-  
-//   // "req.body" é o nosso presente! 
-//   // Graças ao "app.use(express.json())", os dados já vêm prontos.
-//   // É aqui que você vai ver os dados do ONCRMDEALADD, ONCRMDEALUPDATE, etc.
-//   console.log(req.body); 
-  
-//   // 7. AVISO IMPORTANTE:
-//   // Precisamos responder ao Bitrix para ele saber que deu tudo certo.
-//   // Se não fizermos isso, o Bitrix vai achar que falhou e ficar tentando de novo.
-//   res.status(200).send('OK');
-// });
-
-// // 8. Ligamos o servidor!
-// app.listen(port, () => {
-//   console.log(`Servidor rodando na porta ${port} `);
-// });
-// CODIGO PRA ESTUDAR V1 🔝
-
-//Codigo funcionando V2
 // 1. Trazemos o Express para o projeto
 import express from 'express';
 
-// <-- ADIÇÃO: Importa a sua funcao de logica de negocio
+// <-- ALTERAÇÃO AQUI: Importamos suas lógicas de negócio e banco
+// POR FAVOR, VERIFIQUE SE O NOME DAS PASTAS E ARQUIVOS ESTÁ IDÊNTICO (MAIÚSCULA/MINÚSCULA)
+// O erro 'ERR_MODULE_NOT_FOUND' é 99% de certeza por causa disso.
+// Ex: Se a pasta for 'Models', o import tem que ser './Models/routerEntity.js'
 import { identificarEProcessar } from './models/routerEntity.js';
-
-// <-- ADIÇÃO: Importa o pool de conexao do banco de dados
 import { pool } from './db/conecBD.js';
 
-// <-- ADIÇÃO: Bloco auto-executavel para validar a conexao com o banco
+// <-- ALTERAÇÃO AQUI: Adicionamos a validação do banco de dados
 (async () => {
   try {
     await pool.query("SELECT 1");
     console.log("Conexão com o banco de dados validada com sucesso!");
   } catch (err) {
     console.error("Falha ao validar conexão com o banco:", err);
-    process.exit(1);
+    process.exit(1); // Encerra o app se o banco falhar
   }
 })();
 
 // 2. Inicializamos o Express
 const app = express();
 
-// 3. Pegamos a porta do ambiente (Vou mudar para 3000, como no seu exemplo funcional)
-const port = process.env.PORT || 3000; // <-- MUDANÇA (de 3333 para 3000)
+// 3. Pegamos a porta do ambiente (como fizemos antes!)
+// (Mantive a 3333 que você colou, mas 3000 também funcionaria)
+const port = process.env.PORT || 3333;
 
-// 4.  Middlewares para o Express entender os dados
+// 4. Middlewares para o Express entender os dados
 // Isso "ensina" o nosso servidor a entender JSON.
-app.use(express.json()); 
-// Isso "ensina" o nosso servidor a entender "urlencoded" (o formato que o Bitrix usa)
+app.use(express.json());
+// Isso "ensina" o nosso servidor a entender 'urlencoded' (o formato do Bitrix)
 app.use(express.urlencoded({ extended: true }));
 
-// 5. Rota "GET" para a gente testar no navegador
+// 5. Uma rota "GET" para a gente testar no navegador
 app.get('/', (req, res) => {
   res.send('Meu servidor Bitrix está vivo!');
 });
 
-// 6.  A ROTA DO SEU WEBHOOK!
-// <-- MUDANÇA: Alterado de '/webhook' para '/' para bater com seu exemplo funcional
+// 6. A ROTA DO SEU WEBHOOK! 
+// <-- ALTERAÇÃO AQUI: Mudamos de '/webhook' para '/'
+// Seus logs de sucesso (image_f6f404.jpg) mostraram que o Bitrix chama a rota raiz '/'
 app.post('/', (req, res) => {
-
-  // "req.body" agora tem os dados, formatados pelo "express.urlencoded"
+  
+  // Os dados do Bitrix já chegam prontos no 'req.body'
   const data = req.body;
   
-  // Logamos os dados recebidos
-  console.log('--- NOVO WEBHOOK DO BITRIX! (Dados recebidos): ---');
-  console.log(data); 
-
-  // 7. A CORREÇÃO DO SEU PROBLEMA (A INVERSÃO DA LÓGICA)
-  // <-- MUDANÇA CRÍTICA: Respondemos OK ao Bitrix IMEDIATAMENTE.
-  // Isso evita que o Bitrix pense que falhou (timeout) e envie o webhook de novo.
+  console.log('--- NOVO WEBHOOK DO BITRIX! ---');
+  console.log('Dados recebidos:', data); 
+  
+  // 7. AVISO IMPORTANTE (CORREÇÃO DA DUPLICIDADE)
+  // <-- ALTERAÇÃO AQUI: Respondemos OK ao Bitrix IMEDIATAMENTE.
+  // Isso evita que ele dê timeout e mande o webhook de novo.
   res.status(200).send('OK');
-  console.log("Resposta 200/OK enviada ao Bitrix para evitar timeout.");
+  console.log('Resposta 200/OK enviada ao Bitrix.');
   
-  // 8. PROCESSAMENTO (FEITO DEPOIS DE RESPONDER)
-  // <-- ADIÇÃO: Pegamos o evento e chamamos sua função de negócios
-  // Agora podemos fazer a logica demorada (banco de dados)
+  // 8. PROCESSAMENTO (DEPOIS DE RESPONDER)
+  // <-- ALTERAÇÃO AQUI: Adicionamos a lógica de processamento
+  // Agora podemos fazer o trabalho pesado (falar com o banco)
   // sem nos preocuparmos com o timeout do Bitrix.
-  const evento = data.event;
   
+  const evento = data.event;
+
   if (evento) {
-    console.log("Iniciando processamento do evento:", evento);
+    console.log('Iniciando processamento do evento:', evento);
+    // Chamamos sua função que fala com o banco
     identificarEProcessar(evento, data);
   } else {
     console.log("Nenhum 'event' encontrado nos dados recebidos.");
   }
-
 });
 
 // 9. Ligamos o servidor! (Era 8 no seu código)
