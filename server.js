@@ -39,11 +39,11 @@ app.post('/', async (req, res) => {
   if (evento) {
     console.log('--- 3. Evento identificado:', evento, '---');
     
-    // --- 🚀 INÍCIO DA SUA NOVA DEMANDA (COM A CORREÇÃO!) 🚀 ---
+    // --- INÍCIO DA SUA NOVA DEMANDA (COM A CORREÇÃO!)  ---
     
     try {
       // 1. Pegamos o ID do Deal que foi modificado
-      // <-- ✨✨ AQUI ESTÁ A CORREÇÃO, ANJO! ✨✨
+      // <--  AQUI ESTÁ A CORREÇÃO, ANJO! 
       const dealId = data.data.FIELDS.ID; 
 
       if (!dealId) {
@@ -70,14 +70,14 @@ app.post('/', async (req, res) => {
       const dealDetails = await fetchResponse.json();
 
       // 6. EXIBIMOS NO CONSOLE (O SEU OBJETIVO!)
-      console.log('--- 5. ✨ DETALHES DO DEAL OBTIDOS! (O SEU PRINT) ✨ ---');
+      console.log('--- 5.  DETALHES DO DEAL OBTIDOS! (O SEU PRINT)  ---');
       console.log(JSON.stringify(dealDetails, null, 2)); // (Bonitinho igual seu print!)
 
     } catch (error) {
       console.log("Erro GIGANTE ao tentar fazer o 'fetch' para o Bitrix:", error);
     }
     
-    // --- 🚀 FIM DA SUA NOVA DEMANDA 🚀 ---
+    // ---  FIM DA SUA NOVA DEMANDA  ---
 
   } else {
     console.log("Nenhum 'event' encontrado nos dados recebidos.");
