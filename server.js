@@ -19,7 +19,7 @@ app.get('/', (req, res) => {
 });
 
 // 6.  A ROTA DO SEU WEBHOOK! 
-// <-- ✨ MUDANÇA IMPORTANTE: Adicionamos 'async' aqui!
+// (async é importante para o fetch!)
 app.post('/', async (req, res) => {
   
   // Os dados do Webhook de SAÍDA chegam aqui
@@ -39,15 +39,16 @@ app.post('/', async (req, res) => {
   if (evento) {
     console.log('--- 3. Evento identificado:', evento, '---');
     
-    // --- 🚀 INÍCIO DA SUA NOVA DEMANDA 🚀 ---
+    // --- 🚀 INÍCIO DA SUA NOVA DEMANDA (COM A CORREÇÃO!) 🚀 ---
     
     try {
       // 1. Pegamos o ID do Deal que foi modificado
-      // O Bitrix manda o ID dentro dessa chave esquisita
-      const dealId = data['data[FIELDS][ID]'];
+      // <-- ✨✨ AQUI ESTÁ A CORREÇÃO, ANJO! ✨✨
+      const dealId = data.data.FIELDS.ID; 
 
       if (!dealId) {
-        console.log("Erro: Não consegui encontrar o ID ('data[FIELDS][ID]') nos dados do webhook.");
+        // (Mudei a mensagem de erro pra ficar mais clara pra gente!)
+        console.log("Erro: Não consegui encontrar o ID em 'data.data.FIELDS.ID'.");
         return; // Para a execução se não tiver ID
       }
 
@@ -69,9 +70,8 @@ app.post('/', async (req, res) => {
       const dealDetails = await fetchResponse.json();
 
       // 6. EXIBIMOS NO CONSOLE (O SEU OBJETIVO!)
-      // Isso aqui vai mostrar exatamente o JSON do seu print!
       console.log('--- 5. ✨ DETALHES DO DEAL OBTIDOS! (O SEU PRINT) ✨ ---');
-      console.log(JSON.stringify(dealDetails, null, 2)); // (usei stringify pra ficar bonitinho igual seu print!)
+      console.log(JSON.stringify(dealDetails, null, 2)); // (Bonitinho igual seu print!)
 
     } catch (error) {
       console.log("Erro GIGANTE ao tentar fazer o 'fetch' para o Bitrix:", error);
