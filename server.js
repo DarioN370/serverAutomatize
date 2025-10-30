@@ -1,6 +1,3 @@
-// 1. Trazemos o Express para o projeto
-import express from 'express';
-
 // IMPORTANDO O DOTENV
 import 'dotenv/config';
 import express from 'express';
