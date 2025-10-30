@@ -1,7 +1,9 @@
 // 1. Trazemos o Express para o projeto
 import express from 'express';
 
-// (NENHUM OUTRO IMPORT AQUI)
+// IMPORTANDO O DOTENV
+import 'dotenv/config';
+import express from 'express';
 
 // 2. Inicializamos o Express
 const app = express();
@@ -39,23 +41,24 @@ app.post('/', async (req, res) => {
   if (evento) {
     console.log('--- 3. Evento identificado:', evento, '---');
     
-    // --- INÍCIO DA SUA NOVA DEMANDA (COM A CORREÇÃO!)  ---
+    // --- INÍCIO DA DEMANDA (EXIBIR OS DADOS DO CARD CORRESPONDENTE AO ID!)  ---
     
     try {
       // 1. Pegamos o ID do Deal que foi modificado
-      // <--  AQUI ESTÁ A CORREÇÃO, ANJO! 
+      // <--  AQUI ESTÁ A CORREÇÃO 
       const dealId = data.data.FIELDS.ID; 
 
       if (!dealId) {
-        // (Mudei a mensagem de erro pra ficar mais clara pra gente!)
+        // (Mudei a mensagem de erro pra ficar mais clara!)
         console.log("Erro: Não consegui encontrar o ID em 'data.data.FIELDS.ID'.");
         return; // Para a execução se não tiver ID
       }
 
       console.log(`--- 4. ID do Deal extraído: ${dealId}. Buscando detalhes... ---`);
 
-      // 2. Construímos a URL do Webhook de ENTRADA (a que você mandou!)
-      const inputWebhookUrl = `https://automatize.bitrix24.com.br/rest/1/p50lc3d1ca0gg0ee/crm.deal.get?id=${dealId}`;
+      // 2. Construímos a URL do Webhook de ENTRADA, POREM, usando o .env para proteger nossa chave API
+      const baseUrl = process.env.BITRIX_WEBHOOK_URL;
+      const inputWebhookUrl = `${baseUrl}/crm.deal.get?id=${dealId}`;
 
       // 3. Usamos o 'fetch' (embutido no Node) para buscar os dados
       const fetchResponse = await fetch(inputWebhookUrl);
