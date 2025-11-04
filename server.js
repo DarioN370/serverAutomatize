@@ -6,33 +6,36 @@ import express from 'express';
 // 1. Importamos o "tradutor" (driver) do PostgreSQL
 import pg from 'pg';
 
-// 2. Inicializamos o Express - que funciona como um "kit de ferramentas" que acelera e organiza a criação de servidores web com o node.js, um exemplo prárico é o seguinte, o Node.js puro me da o motor(o módulo http) para criar o servidor, mas ele é super basico, eu teria que construir todo o resto, volante, rodas, tudo do zero, escrevendo muito codigo só pra saber qual URL o user visitou, o express ja me entrega uma estrutura toda pronta, ele cuida de todo o trabalho chato... Ele de forma facil me mostra se o user esta tentando visitar a pagina com app.get ou se o bitrix esta enviando dados para a app.post, add os "porteiros", são os express.json() e express.urlencoded(), que decodificam dados que chegam e os colocam no req.body, alem disso, ele organiza a estrutura de forma limpa(app.get, app.post, app.listen) que é o padrao do mercado
+// 2. Inicializamos o Express - que funciona como um "kit de ferramentas" que acelera e organiza a criação de servidores web com o node.js, um exemplo prárico é o seguinte, o Node.js puro me da o motor(o módulo http) para criar o servidor, mas ele é super basico, eu teria que construir todo o resto, volante, rodas, tudo do zero, escrevendo muito codigo só pra saber qual URL o user visitou, o express ja me entrega uma estrutura toda pronta, ele cuida de todo o trabalho chato... Ele de forma facil me mostra se o user esta tentando visitar a pagina com app.get ou se o bitrix esta enviando dados para a app.post, add os "porteiros", são os express.json() e express.urlencoded(), que decodificam dados chegam e os colocam no req.body, alem disso, ele organiza a estrutura de forma limpa(app.get, app.post, app.listen) que é o padrao do mercado
 //RESUMO - faz o trabalho de forma 1000x mais fácil
 const app = express();
 
 // 3. Pegamos a porta do ambiente (usando 3000)
 const port = process.env.PORT || 3000;
 
-// <-- ✨ BLOCO NOVO INTEIRO ADICIONADO AQUI! ✨ -->
-// --- (Início) BLOCO DE CONEXÃO COM O BANCO (Jeito Fácil!) ---
-// Importamos a ferramenta "Pool" (gerenciador de conexões) do 'pg'
+// <-- ✨ BLOCO DE CONEXÃO FOI ALTERADO! ✨ -->
+// --- (Início) BLOCO DE CONEXÃO COM O BANCO (Jeito 100% Seguro!) ---
 const { Pool } = pg; 
-
-// Criamos nosso gerenciador de conexões
 const pool = new Pool({
-  // O "tradutor pg" é inteligente! Ele lê a DATABASE_URL sozinho
-  // lá do nosso 'process.env' (que o dotenv carregou da linha 2!)
+  // O "tradutor pg" ainda lê a DATABASE_URL
   connectionString: process.env.DATABASE_URL,
   
-  // A gente ainda precisa disso para o banco da Square Cloud funcionar
+  // AGORA, a gente passa os "documentos" (certificados)
   ssl: {
-    rejectUnauthorized: false
+    // A gente não usa mais o "passe livre" (rejectUnauthorized: false)
+    // Agora a gente vai AUTENTICAR de verdade!
+    rejectUnauthorized: true, // <-- MUDOU DE 'false' PARA 'true'
+    
+    // O "documento" da Autoridade Certificadora (o .crt)
+    ca: process.env.PG_CA_CERT,
+    // A sua "chave" secreta (o .key)
+    key: process.env.PG_CLIENT_KEY,
+    // O seu "documento" de identidade (o .pem)
+    cert: process.env.PG_CLIENT_CERT
   }
 });
 
 // (O nosso código de teste de "ping"!)
-// (async () => { ... })() é uma "função que se auto-executa"
-// Ela vai rodar assim que o servidor ligar
 (async () => {
   try {
     // Tenta "pingar" o banco para ver se a conexão deu certo
@@ -43,7 +46,7 @@ const pool = new Pool({
   }
 })();
 // --- (Fim) BLOCO DE CONEXÃO ---
-// <-- ✨ FIM DO BLOCO ADICIONADO ✨ -->
+// <-- ✨ FIM DA ALTERAÇÃO ✨ -->
 
 
 // 4.  Middlewares para o Express entender os dados
@@ -121,7 +124,6 @@ app.post('/', async (req, res) => {
       console.log('--- 5.  DETALHES DO DEAL OBTIDOS! ---');
       console.log(JSON.stringify(dealDetails, null, 2)); //Se a gente só fizesse console.log(dealDetails), ele apareceria no log todo "espremido" numa linha só. O JSON.stringify com os parâmetros null, 2 é um truque de formatação! Ele transforma o objeto de volta em texto JSON, mas de um jeito "bonitinho", com quebras de linha e 2 espaços de indentação.
       
-      // <-- ✨ ALTERAÇÃO AQUI! ✨ -->
       // (Aqui é onde vamos colocar nosso INSERT INTO... amanhã!)
       // (Ex: await pool.query('INSERT INTO deals ...', [dealId, ...]))
 
@@ -141,4 +143,4 @@ app.post('/', async (req, res) => {
 app.listen(port, () => {
   console.log(`Servidor rodando na porta ${port}`);
 }); //Esse é o comando final. É o "play" do servidor, a gente manda o app(servidor) ir para a garagem (a port que a gente definiu) e começar a LISTEN (escutar) por conexões(visitas na rota GET, ou webhooks na rota POST). 
-// () => { ... }: Essa é a "função de callback" (a "função de aviso"). O Express promete executar ela assim que o servidor estiver 100% online e pronto para receber visitas
+// () => { ... }: Essa é a "função de callback" (a "função de aviso"). O Express promete executar ela assim que o servidor estiver 100% online e pronto para receber visitas.
