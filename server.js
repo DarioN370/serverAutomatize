@@ -24,10 +24,10 @@ const pool = new Pool({
   ssl: {
     // A gente não usa mais o "passe livre" (rejectUnauthorized: false)
     // Agora a gente vai AUTENTICAR de verdade!
-    rejectUnauthorized: true, // <-- MUDOU DE 'false' PARA 'true'
+    rejectUnauthorized: false, // <-- MUDOU DE 'true' PARA 'false'
     
-    // O "documento" da Autoridade Certificadora (o .crt)
-    ca: process.env.PG_CA_CERT,
+    // // O "documento" da Autoridade Certificadora (o .crt)
+    // ca: process.env.PG_CA_CERT,
     // A sua "chave" secreta (o .key)
     key: process.env.PG_CLIENT_KEY,
     // O seu "documento" de identidade (o .pem)
