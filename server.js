@@ -5,33 +5,37 @@ import express from 'express';
 // <-- ✨ ALTERAÇÃO AQUI! ✨ -->
 // 1. Importamos o "tradutor" (driver) do PostgreSQL
 import pg from 'pg';
+// 2. Importamos o "Buffer" para decodificar o Base64
+import { Buffer } from 'node:buffer'; 
 
-// 2. Inicializamos o Express - que funciona como um "kit de ferramentas" que acelera e organiza a criação de servidores web com o node.js, um exemplo prárico é o seguinte, o Node.js puro me da o motor(o módulo http) para criar o servidor, mas ele é super basico, eu teria que construir todo o resto, volante, rodas, tudo do zero, escrevendo muito codigo só pra saber qual URL o user visitou, o express ja me entrega uma estrutura toda pronta, ele cuida de todo o trabalho chato... Ele de forma facil me mostra se o user esta tentando visitar a pagina com app.get ou se o bitrix esta enviando dados para a app.post, add os "porteiros", são os express.json() e express.urlencoded(), que decodificam dados chegam e os colocam no req.body, alem disso, ele organiza a estrutura de forma limpa(app.get, app.post, app.listen) que é o padrao do mercado
+// 2. Inicializamos o Express - (Seus comentários incríveis continuam aqui!)
 //RESUMO - faz o trabalho de forma 1000x mais fácil
 const app = express();
 
 // 3. Pegamos a porta do ambiente (usando 3000)
 const port = process.env.PORT || 3000;
 
-// <-- ✨ BLOCO DE CONEXÃO FOI ALTERADO! ✨ -->
-// --- (Início) BLOCO DE CONEXÃO COM O BANCO (Jeito 100% Seguro!) ---
+// <-- ✨ O BLOCO DE CONEXÃO INTEIRO FOI TROCADO! (Linhas 23-49) ✨ -->
+// --- (Início) BLOCO DE CONEXÃO (A Versão Base64 - A PROVA DE FALHAS!) ---
 const { Pool } = pg; 
+
+// "Decodificamos" as "tripas" Base64 que a Square Cloud nos dá
+// A gente lê a variável (ex: PG_CA_CERT_BASE64) e transforma de volta no texto do certificado
+const caCert = Buffer.from(process.env.PG_CA_CERT_BASE64, 'base64').toString('utf-8');
+const clientKey = Buffer.from(process.env.PG_CLIENT_KEY_BASE64, 'base64').toString('utf-8');
+const clientCert = Buffer.from(process.env.PG_CLIENT_CERT_BASE64, 'base64').toString('utf-8');
+
+// Criamos nosso gerenciador de conexões
 const pool = new Pool({
   // O "tradutor pg" ainda lê a DATABASE_URL
   connectionString: process.env.DATABASE_URL,
   
-  // AGORA, a gente passa os "documentos" (certificados)
+  // Agora passamos os certificados DECODIFICADOS!
   ssl: {
-    // A gente não usa mais o "passe livre" (rejectUnauthorized: false)
-    // Agora a gente vai AUTENTICAR de verdade!
-    rejectUnauthorized: true, // <-- MUDOU DE 'false' PARA 'true'
-    
-    // O "documento" da Autoridade Certificadora (o .crt)
-    ca: process.env.PG_CA_CERT,
-    // A sua "chave" secreta (o .key)
-    key: process.env.PG_CLIENT_KEY,
-    // O seu "documento" de identidade (o .pem)
-    cert: process.env.PG_CLIENT_CERT
+    rejectUnauthorized: true, // Tem que ser 'true'
+    ca: caCert,
+    key: clientKey,
+    cert: clientCert
   }
 });
 
@@ -107,7 +111,7 @@ app.post('/', async (req, res) => {
 
       // 3. Usamos o 'fetch' (embutido no Node) para buscar os dados
       const fetchResponse = await fetch(inputWebhookUrl); //O fetch vai lá no servidor do Bitrix (lá na automatize.bitrix24.com.br...) e "pergunta": "Ei, me dá os dados desse Deal, por favor?".
-      //Alem disso, O await pausa a execução do seu código exatamente nesta linha. O seu servidor fica ali, de braços cruzados, esperando o Bitrix responder. Isso pode levar 1 segundo, 2 segundos...
+      //Alem disso, O await pausa a execução do seu código exatamente nesta linha. O seu servidor fica ali, de braços cruzos, esperando o Bitrix responder. Isso pode levar 1 segundo, 2 segundos...
       // aí ele guarda a resposta na variavel fetchResponse
       //O fetchResponse ainda não são os dados que a gente quer. Ele é a "caixa" que o correio entregou. É um objeto com informações sobre a entrega (Deu certo? Foi 200 OK? Foi erro 404? A caixa veio amassada?).
 
@@ -143,4 +147,4 @@ app.post('/', async (req, res) => {
 app.listen(port, () => {
   console.log(`Servidor rodando na porta ${port}`);
 }); //Esse é o comando final. É o "play" do servidor, a gente manda o app(servidor) ir para a garagem (a port que a gente definiu) e começar a LISTEN (escutar) por conexões(visitas na rota GET, ou webhooks na rota POST). 
-// () => { ... }: Essa é a "função de callback" (a "função de aviso"). O Express promete executar ela assim que o servidor estiver 100% online e pronto para receber visitas.
+// () => { ... }: Essa é a "função de callback" (a "função de aviso"). O Express promete executar ela assim que o servidor estiver 100% online e funcionando pronto para receber visitas
