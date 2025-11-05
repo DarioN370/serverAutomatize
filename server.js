@@ -6,36 +6,43 @@ import express from 'express';
 // 1. Importamos o "tradutor" (driver) do PostgreSQL
 import pg from 'pg';
 // 2. Importamos o "Buffer" para decodificar o Base64
-import { Buffer } from 'node:buffer'; 
+import { Buffer } from 'node:buffer'; //As chaves do banco (certificados SSL) vêm num formato de texto (Base64) que o "tradutor" pg não entende. O Buffer é a ferramenta que pega esse texto Base64 e o transforma de volta no "certificado" original que o pg consegue ler
 
-// 2. Inicializamos o Express - (Seus comentários incríveis continuam aqui!)
+// 2. Inicializamos o Express
 //RESUMO - faz o trabalho de forma 1000x mais fácil
 const app = express();
 
 // 3. Pegamos a porta do ambiente (usando 3000)
 const port = process.env.PORT || 3000;
 
-// <--  O BLOCO DE CONEXÃO INTEIRO FOI TROCADO! (Linhas 23-49)  -->
-// --- (Início) BLOCO DE CONEXÃO (A Versão Base64 - A PROVA DE FALHAS!) ---
-const { Pool } = pg; 
 
-// "Decodificamos" as "tripas" Base64 que a Square Cloud nos dá
+
+
+// --- (Início) BLOCO DE CONEXÃO COM O BANCO DE DADOS (base64)---
+const { Pool } = pg; //Importa a lib pg, , o nosso node , ou no caso o java script, não sabe falar a lingua do postgreSQL, então a gente importa um "interpretador" que faz essa comunicação
+
+// "Decodificamos" as "tripas" das chaves Base64 que a Square Cloud nos dá
 // A gente lê a variável (ex: PG_CA_CERT_BASE64) e transforma de volta no texto do certificado
+// process.env.PG_CA_CERT_BASE64: Lê a sua variável de ambiente (aquela string gigante que você copiou do painel da Square Cloud).
+//Buffer.from(..., 'base64'): Usa o "decodificador" para entender essa string como Base64.
+//.toString('utf-8'): Converte o resultado de volta para um texto normal (o certificado).
 const caCert = Buffer.from(process.env.PG_CA_CERT_BASE64, 'base64').toString('utf-8');
 const clientKey = Buffer.from(process.env.PG_CLIENT_KEY_BASE64, 'base64').toString('utf-8');
 const clientCert = Buffer.from(process.env.PG_CLIENT_CERT_BASE64, 'base64').toString('utf-8');
 
-// Criamos nosso gerenciador de conexões
+// Criamos nosso gerenciador de conexões e damos o endereço do banco de dados
 const pool = new Pool({
   // O "tradutor pg" ainda lê a DATABASE_URL
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DATABASE_URL, //aqui ele diz ao pool as informações basicas, User, senha, host, porta, nome do banco etc...
   
   // Agora passamos os certificados DECODIFICADOS!
-  ssl: {
-    rejectUnauthorized: true, // Tem que ser 'true'
-    ca: caCert,
-    key: clientKey,
-    cert: clientCert
+  ssl: { //Aqui avisamos ao pool que a conexão é super segura e usa o SSL
+    rejectUnauthorized: true, // trava de segurança. Diz: "Se o certificado do servidor não for 100% válido e confiável, recuse a conexão.
+    ca: caCert, //Aqui está o certificado da 'Autoridade' (CA). Use isso para verificar se o servidor que estamos conectando é quem diz ser.
+    key: clientKey, //Aqui está a minha chave privada ("Meu segredo")
+    cert: clientCert // Aqui está o meu certificado público ("meu RG").
+
+    //Juntando key e cert, você prova para o servidor quem você é. Juntando o ca, você garante que o servidor é quem ele diz ser. É uma trava de segurança dos dois lados!
   }
 });
 
@@ -48,9 +55,18 @@ const pool = new Pool({
   } catch (err) {
     console.log('--- ❌ ERRO AO CONECTAR COM O BANCO: ---', err);
   }
+  //EXPLICAÇÃO DO BLOCO
+  //try { ... }: Ele "tenta" (try) fazer uma coisa.
+
+  //await pool.query('SELECT 1');: Ele pede ao "Gerente" (pool) uma conexão emprestada e manda o comando mais simples possível para o banco: SELECT 1 (Basicamente: "Banco, me responda com o número 1?").
+
+  //Se o banco responder, ele imprime o ✅ SUCESSO!.
+
+  //Se o banco der erro (senha errada, certificado errado, etc.), ele pula pro catch { ... } e imprime o ❌ ERRO!
+
 })();
-// --- (Fim) BLOCO DE CONEXÃO ---
-// <-- ✨ FIM DA ALTERAÇÃO ✨ -->
+// --- (Fim) BLOCO DE CONEXÃO COM O BANCO DE DADOS ---
+
 
 
 // 4.  Middlewares para o Express entender os dados
