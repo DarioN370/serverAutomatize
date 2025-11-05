@@ -62,7 +62,7 @@ const pool = new Pool({
 
   //Se o banco responder, ele imprime o ✅ SUCESSO!.
 
-  //Se o banco der erro (senha errada, certificado errado, etc.), ele pula pro catch { ... } e imprime o ❌ ERRO!
+  //Se o banco der erro (senha errada, certificado errado, etc.), ele pula pro catch { ... } e imprime o ERRO!
 
 })();
 // --- (Fim) BLOCO DE CONEXÃO COM O BANCO DE DADOS ---
