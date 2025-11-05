@@ -2,7 +2,7 @@
 import 'dotenv/config';
 import express from 'express';
 
-// <-- ✨ ALTERAÇÃO AQUI! ✨ -->
+// <-- ALTERAÇÃO AQUI! -->
 // 1. Importamos o "tradutor" (driver) do PostgreSQL
 import pg from 'pg';
 // 2. Importamos o "Buffer" para decodificar o Base64
@@ -15,7 +15,7 @@ const app = express();
 // 3. Pegamos a porta do ambiente (usando 3000)
 const port = process.env.PORT || 3000;
 
-// <-- ✨ O BLOCO DE CONEXÃO INTEIRO FOI TROCADO! (Linhas 23-49) ✨ -->
+// <--  O BLOCO DE CONEXÃO INTEIRO FOI TROCADO! (Linhas 23-49)  -->
 // --- (Início) BLOCO DE CONEXÃO (A Versão Base64 - A PROVA DE FALHAS!) ---
 const { Pool } = pg; 
 

@@ -28,6 +28,7 @@ O *pipeline* de dados opera em algumas etapas principais:
 * **Core:** Node.js
 * **Servidor:** Express.js
 * **Segurança:** `dotenv` para gerenciamento de variáveis de ambiente (protegendo a URL do webhook).
+* **Banco de Dados:** Feito com PostgreSQL hospedado na SquareCloud 
 * **Fonte de Dados:** Bitrix24 (REST API & Webhooks)
 * **Hospedagem:** Square Cloud
 * **Ambiente Dev:** NVM (Node Version Manager)
