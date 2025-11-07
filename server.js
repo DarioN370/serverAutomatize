@@ -58,7 +58,7 @@ const pool = new Pool({
     console.log('--- ✅ CONEXÃO COM O BANCO POSTGRESQL BEM-SUCEDIDA! ---');
     // 2. DEFINE O COMANDO DA TABELA
     const createTableQuery = `
-      CREATE TABLE IF NOT EXISTS deal_activity (
+      CREATE TABLE IF NOT EXISTS squarecloud.deal_activity (
         deal_id BIGINT PRIMARY KEY,
         title VARCHAR(255) NOT NULL,
         stage_id VARCHAR(50),
