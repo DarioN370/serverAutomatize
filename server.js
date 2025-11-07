@@ -48,47 +48,12 @@ const pool = new Pool({
 
 // (O nosso código de teste de "ping"! E CRIAÇÃO DA TABELA)
 (async () => {
-  let client; // Variavel para guardar a conexão
   try {
-    // Pegamos a conexao emprestada do pool
-    client = await pool.connect();
-
     // Tenta "pingar" o banco para ver se a conexão deu certo
     await pool.query('SELECT 1');
     console.log('--- ✅ CONEXÃO COM O BANCO POSTGRESQL BEM-SUCEDIDA! ---');
-    // 2. DEFINE O COMANDO DA TABELA
-    const createTableQuery = `
-      CREATE TABLE IF NOT EXISTS squarecloud.deal_activity (
-        deal_id BIGINT PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        stage_id VARCHAR(50),
-        opportunity_value NUMERIC(18, 2),
-        currency VARCHAR(10),
-        assigned_by_id INT,
-        created_by_id INT,
-        source_id VARCHAR(50),
-        company_id INT,
-        contact_id INT,
-        date_create TIMESTAMP WITH TIME ZONE,
-        date_modify TIMESTAMP WITH TIME ZONE,
-        closed_date TIMESTAMP WITH TIME ZONE,
-        closed BOOLEAN,
-        is_return_customer BOOLEAN,
-        last_activity_time TIMESTAMP WITH TIME ZONE
-      );
-    `;
-
-    //Manda o banco criar a tabela
-    await client.query(createTableQuery);
-    console.log('--- TABELA "deal_activity" VERIFICADA/CRIADA COM SUCESSO! ---')
-
-  } catch (err) {
+    } catch (err) {
     console.log('--- ❌ ERRO AO CONECTAR COM O BANCO: ---', err);
-  } finally {
-    //devolve a conexão para o POOL, aconteça o que acontecer
-    if (client) {
-      client.release();
-    }
   }
   //EXPLICAÇÃO DO BLOCO
   //try { ... }: Ele "tenta" (try) fazer uma coisa.
