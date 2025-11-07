@@ -144,8 +144,67 @@ app.post('/', async (req, res) => {
       console.log('--- 5.  DETALHES DO DEAL OBTIDOS! ---');
       console.log(JSON.stringify(dealDetails, null, 2)); //Se a gente só fizesse console.log(dealDetails), ele apareceria no log todo "espremido" numa linha só. O JSON.stringify com os parâmetros null, 2 é um truque de formatação! Ele transforma o objeto de volta em texto JSON, mas de um jeito "bonitinho", com quebras de linha e 2 espaços de indentação.
       
-      // (Aqui é onde vamos colocar nosso INSERT INTO... amanhã!)
-      // (Ex: await pool.query('INSERT INTO deals ...', [dealId, ...]))
+      // --- 7. SALVANDO NO BANCO DE DADOS (O GRAN FINALE!) ---
+
+      // Prepara a query "UPSERT" (Se o ID não existir, INSERE. Se já existir, ATUALIZA.)
+      // Isso é ESSENCIAL para a pipeline, para não dar erro de "chave duplicada"!
+      const upsertQuery = `
+        INSERT INTO deal_activity (
+          deal_id, title, stage_id, opportunity_value, currency, assigned_by_id,
+          created_by_id, source_id, company_id, contact_id, date_create,
+          date_modify, closed_date, closed, is_return_customer, last_activity_time
+        )
+        VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+        )
+        ON CONFLICT (deal_id) DO UPDATE SET
+          title = EXCLUDED.title,
+          stage_id = EXCLUDED.stage_id,
+          opportunity_value = EXCLUDED.opportunity_value,
+          currency = EXCLUDED.currency,
+          assigned_by_id = EXCLUDED.assigned_by_id,
+          created_by_id = EXCLUDED.created_by_id,
+          source_id = EXCLUDED.source_id,
+          company_id = EXCLUDED.company_id,
+          contact_id = EXCLUDED.contact_id,
+          date_create = EXCLUDED.date_create,
+          date_modify = EXCLUDED.date_modify,
+          closed_date = EXCLUDED.closed_date,
+          closed = EXCLUDED.closed,
+          is_return_customer = EXCLUDED.is_return_customer,
+          last_activity_time = EXCLUDED.last_activity_time;
+      `;
+
+      // Pega o objeto "result" que o Bitrix mandou
+      const deal = dealDetails.result;
+
+      // Prepara o array de valores, na ordem certinha dos "$1, $2..."
+      // (Usamos "|| null" para garantir que, se um campo vier vazio, ele salve NULL no banco)
+      const values = [
+        parseInt(deal.ID) || null,                               // $1 - deal_id
+        deal.TITLE || null,                                      // $2 - title
+        deal.STAGE_ID || null,                                   // $3 - stage_id
+        parseFloat(deal.OPPORTUNITY) || null,                    // $4 - opportunity_value (Bitrix manda como string)
+        deal.CURRENCY_ID || null,                                // $5 - currency
+        parseInt(deal.ASSIGNED_BY_ID) || null,                   // $6 - assigned_by_id
+        parseInt(deal.CREATED_BY_ID) || null,                    // $7 - created_by_id
+        deal.SOURCE_ID || null,                                  // $8 - source_id
+        parseInt(deal.COMPANY_ID) || null,                       // $9 - company_id
+        parseInt(deal.CONTACT_ID) || null,                       // $10 - contact_id (Baseado no seu mapeamento)
+        deal.DATE_CREATE || null,                                // $11 - date_create (PostgreSQL entende esse formato!)
+        deal.DATE_MODIFY || null,                                // $12 - date_modify
+        deal.CLOSED_DATE || null,                                // $13 - closed_date
+        deal.CLOSED === 'Y',                                     // $14 - closed (Converte "Y" para TRUE)
+        deal.IS_RETURN_CUSTOMER === 'Y',                         // $15 - is_return_customer
+        deal.LAST_ACTIVITY_TIME || null                          // $16 - last_activity_time
+      ];
+
+      // Roda o comando no banco de dados!
+      await pool.query(upsertQuery, values);
+
+      console.log(`--- 6. ✅ SUCESSO! Deal ${deal.ID} salvo/atualizado no banco! ---`);
+
+      // --- FIM DO BLOCO DO INSERT NO BANCO ---
 
 
     } catch (error) {
