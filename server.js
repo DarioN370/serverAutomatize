@@ -2,7 +2,6 @@
 import 'dotenv/config';
 import express from 'express';
 
-// <-- ALTERAÇÃO AQUI! -->
 // 1. Importamos o "tradutor" (driver) do PostgreSQL
 import pg from 'pg';
 // 2. Importamos o "Buffer" para decodificar o Base64
@@ -46,7 +45,7 @@ const pool = new Pool({
   }
 });
 
-// (O nosso código de teste de "ping"! E CRIAÇÃO DA TABELA)
+// (O nosso código de teste de "ping"!)
 (async () => {
   try {
     // Tenta "pingar" o banco para ver se a conexão deu certo
@@ -82,72 +81,91 @@ app.get('/', (req, res) => {
 // req (Request / Requisição): É um objeto que tem todas as informações sobre quem está visitando (de onde ela veio, qual o IP, etc.). A gente não usou ele aqui.
 // res (Response / Resposta): É um objeto que tem todas as ferramentas para a gente responder a essa visita. É o mais importante!
 
-// 6.  A ROTA DO SEU WEBHOOK! 
-// (async é importante para o fetch!)
+// 6.  A ROTA DO SEU WEBHOOK! (VERSÃO ATUALIZADA COM DELETE!)
 app.post('/', async (req, res) => { 
-//  O que faz: Essa linha é bem parecida com a rota app.get, mas ela tem duas diferenças cruciais.
-//  app.post: É o comando que diz "servidor, fique ouvindo por requisições do tipo POST...".
-//  Uma requisição "POST" é usada para ENVIAR DADOS para um servidor. O Bitrix não quer "pegar" uma página, ele quer "entregar" um pacote de dados (o webhook) para você.
-//  '/': É a URL para onde o Bitrix vai enviar os dados (a raiz do site).
-//  async (req, res): Aqui está a mágica!
-//  async (Assíncrono): Essa palavrinha é um aviso para o JavaScript. Ela diz: "Atenção! Dentro desta função, nós vamos fazer coisas que demoram e precisam de 'paciência' (como o fetch, que vai buscar dados na internet). O código aqui dentro pode precisar 'esperar' (await) por essas coisas."
-  
+  
   // Os dados do Webhook de SAÍDA chegam aqui
-  const data = req.body; // aqui eu to usando o porteiro express.urlencoded e armazenando o objeto limpinho com o evento e os campos e armazenando dentro da variavel data
-  
-  console.log('--- 1. NOVO WEBHOOK DO BITRIX! (Saída) ---'); // msg normal mostrando que chegou dado 
-  console.log('Dados recebidos:', data); //mostrando e avisando que os dados chegaram
+  const data = req.body; 
+  console.log('--- 1. NOVO WEBHOOK DO BITRIX! (Saída) ---');
+  console.log('Dados recebidos:', data); 
   
   // 7. AVISO IMPORTANTE (CORREÇÃO DA DUPLICIDADE)
   res.status(200).send('OK'); // Respondemos OK ao Bitrix IMEDIATAMENTE.
   console.log('--- 2. Resposta 200/OK enviada ao Bitrix. ---');
   
   // 8. PROCESSAMENTO (FEITO DEPOIS DE RESPONDER)
-  const evento = data.event; // sabe a linha que cria a const data e guarda os dados do campo, essa linha manda pegar o pacote data, e acessa(.) a propriedade event(update, add, delete), então ela guarda o valor que estava lá (por exemplo, a string "ONCRMDEALUPDATE") dentro de uma nova variável chamada evento.
+  
+  // Pegamos o evento e o ID logo de cara, pois precisamos deles para o "roteamento"
+  const evento = data.event; 
+  const dealId = data.data?.FIELDS?.ID; // Usando optional chaining (?.), é mais seguro!
 
-  if (evento) { //Condição de segurança, ela pergunta: A variável evento que a gente acabou de criar existe? Ela não é undefined ou null?... ele faz isso pq queremos fazer o fetch (buscar detalhes) apenas se o Bitrix me mandar evento valido, caso contrario, se ele mandar o webhook sem a propriedade event, o codigo acaba
-    console.log('--- 3. Evento identificado:', evento, '---');
-    
-    // --- INÍCIO DE PEGAR E MOSTRAR OS DADOS DO CARD CORRESPONDENTE AO ID!)  ---
-    
-    try { //Aqui é onde meu código tenta fazer linha por linha, se algo falhar, ele me notifica com erro
-      // 1. Pegamos o ID do Deal que foi modificado
-      const dealId = data.data.FIELDS.ID; // aqui eu to acessando o ID do negocio, acesso o data(req.body). depois acesso a primeira chave data nele, depois a chave FIELDS, depois acesso a chave ID, aí pega o valor que achou lá (ex: a string "97") e guarda na variável dealId pra usar logo em seguida.
+  // Se não tiver evento OU ID, não podemos fazer nada.
+  if (!evento || !dealId) { 
+    console.log("--- 3. Evento ou ID não encontrado nos dados. Ignorando. ---");
+    return; // Para a execução
+  }
 
-      if (!dealId) { // Aqui ocorre uma checagem, o ! significa não, ou seja, se NÃO existir um dealId, se ele for undefined, null ou vazio
-        console.log("Erro: Não consegui encontrar o ID em 'data.data.FIELDS.ID'.");
-        return; // Para a execução se não tiver ID
+  console.log(`--- 3. Evento identificado: ${evento}, ID do Deal: ${dealId} ---`);
+
+  // --- ‼️ INÍCIO DA NOVA LÓGICA DE ROTAS ‼️ ---
+  try {
+
+    // ----------------------------------------------------
+    // ROTA A: O Deal foi DELETADO
+    // ----------------------------------------------------
+    if (evento === 'ONCRMDEALDELETE') {
+      
+      console.log(`--- 4. Iniciando DELEÇÃO para o Deal ID: ${dealId} ---`);
+      const deleteQuery = 'DELETE FROM deal_activity WHERE deal_id = $1';
+      
+      // Roda o comando no banco de dados!
+      // Usamos parseInt para garantir que o ID é um número
+      const result = await pool.query(deleteQuery, [parseInt(dealId)]);
+
+      if (result.rowCount > 0) {
+        console.log(`--- 5. ✅ SUCESSO! Deal ${dealId} deletado do banco! ---`);
+      } else {
+        console.log(`--- 5. ⚠️ AVISO! Deal ${dealId} para deletar não foi encontrado no banco. ---`);
       }
+
+    // ----------------------------------------------------
+    // ROTA B: O Deal foi CRIADO ou ATUALIZADO
+    // ----------------------------------------------------
+    } else if (evento === 'ONCRMDEALADD' || evento === 'ONCRMDEALUPDATE') {
+      
+      // --- (AQUI ENTRA O SEU CÓDIGO ORIGINAL DE FETCH E UPSERT!) ---
 
       console.log(`--- 4. ID do Deal extraído: ${dealId}. Buscando detalhes... ---`);
 
-      // 2. Construímos a URL do Webhook de ENTRADA, POREM, usando o .env para proteger nossa chave API
+      // 2. Construímos a URL do Webhook de ENTRADA...
       const baseUrl = process.env.BITRIX_WEBHOOK_URL;
       const inputWebhookUrl = `${baseUrl}/crm.deal.get?id=${dealId}`;
 
-      // 3. Usamos o 'fetch' (embutido no Node) para buscar os dados
-      const fetchResponse = await fetch(inputWebhookUrl); //O fetch vai lá no servidor do Bitrix (lá na automatize.bitrix24.com.br...) e "pergunta": "Ei, me dá os dados desse Deal, por favor?".
-      //Alem disso, O await pausa a execução do seu código exatamente nesta linha. O seu servidor fica ali, de braços cruzos, esperando o Bitrix responder. Isso pode levar 1 segundo, 2 segundos...
-      // aí ele guarda a resposta na variavel fetchResponse
-      //O fetchResponse ainda não são os dados que a gente quer. Ele é a "caixa" que o correio entregou. É um objeto com informações sobre a entrega (Deu certo? Foi 200 OK? Foi erro 404? A caixa veio amassada?).
+      // 3. Usamos o 'fetch'...
+      const fetchResponse = await fetch(inputWebhookUrl); 
 
       // 4. Verificamos se a busca deu certo
-      if (!fetchResponse.ok) { // Aqui é o seguinte, ele vai ver se não foi ok, se não estiver ok, ele vai dar o erro e fechar a exec do código
-        console.log(`Erro ao buscar detalhes. Bitrix respondeu com status: ${fetchResponse.status}`);
-        return;
+      if (!fetchResponse.ok) { 
+        console.log(`Erro ao buscar detalhes (talvez o deal tenha sido deletado logo após?). Bitrix respondeu com status: ${fetchResponse.status}`);
+        return; // Se não achou o deal, não podemos fazer UPSERT.
       }
 
       // 5. Transformamos a resposta em JSON
-      const dealDetails = await fetchResponse.json(); // usamos o fetchResponse.json para abrir a caixa com os dados, e ler o que esta dentro dela, usamos o await porque pode demorar, depois guardamos a resposta dentro de dealDetails
+      const dealDetails = await fetchResponse.json(); 
 
-      // 6. EXIBIMOS NO CONSOLE (O SEU OBJETIVO!)
-      console.log('--- 5.  DETALHES DO DEAL OBTIDOS! ---');
-      console.log(JSON.stringify(dealDetails, null, 2)); //Se a gente só fizesse console.log(dealDetails), ele apareceria no log todo "espremido" numa linha só. O JSON.stringify com os parâmetros null, 2 é um truque de formatação! Ele transforma o objeto de volta em texto JSON, mas de um jeito "bonitinho", com quebras de linha e 2 espaços de indentação.
+      // 5.1 Checagem de segurança extra
+      if (!dealDetails.result) {
+        console.log("--- ERRO: O Bitrix respondeu OK, mas 'dealDetails.result' está vazio. Não posso fazer UPSERT. ---");
+        return;
+      }
+
+      // 6. EXIBIMOS NO CONSOLE...
+      console.log('--- 5.  DETALHES DO DEAL OBTIDOS! ---');
+      console.log(JSON.stringify(dealDetails, null, 2)); 
       
       // --- 7. SALVANDO NO BANCO DE DADOS (O GRAN FINALE!) ---
 
-      // Prepara a query "UPSERT" (Se o ID não existir, INSERE. Se já existir, ATUALIZA.)
-      // Isso é ESSENCIAL para a pipeline, para não dar erro de "chave duplicada"!
+      // Prepara a query "UPSERT"... (Seu código perfeito!)
       const upsertQuery = `
         INSERT INTO deal_activity (
           deal_id, title, stage_id, opportunity_value, currency, assigned_by_id,
@@ -178,25 +196,24 @@ app.post('/', async (req, res) => {
       // Pega o objeto "result" que o Bitrix mandou
       const deal = dealDetails.result;
 
-      // Prepara o array de valores, na ordem certinha dos "$1, $2..."
-      // (Usamos "|| null" para garantir que, se um campo vier vazio, ele salve NULL no banco)
+      // Prepara o array de valores... (Seu código perfeito!)
       const values = [
-        parseInt(deal.ID) || null,                               // $1 - deal_id
-        deal.TITLE || null,                                      // $2 - title
-        deal.STAGE_ID || null,                                   // $3 - stage_id
-        parseFloat(deal.OPPORTUNITY) || null,                    // $4 - opportunity_value (Bitrix manda como string)
-        deal.CURRENCY_ID || null,                                // $5 - currency
-        parseInt(deal.ASSIGNED_BY_ID) || null,                   // $6 - assigned_by_id
-        parseInt(deal.CREATED_BY_ID) || null,                    // $7 - created_by_id
-        deal.SOURCE_ID || null,                                  // $8 - source_id
-        parseInt(deal.COMPANY_ID) || null,                       // $9 - company_id
-        parseInt(deal.CONTACT_ID) || null,                       // $10 - contact_id (Baseado no seu mapeamento)
-        deal.DATE_CREATE || null,                                // $11 - date_create (PostgreSQL entende esse formato!)
-        deal.DATE_MODIFY || null,                                // $12 - date_modify
-        deal.CLOSED_DATE || null,                                // $13 - closed_date
-        deal.CLOSED === 'Y',                                     // $14 - closed (Converte "Y" para TRUE)
-        deal.IS_RETURN_CUSTOMER === 'Y',                         // $15 - is_return_customer
-        deal.LAST_ACTIVITY_TIME || null                          // $16 - last_activity_time
+        parseInt(deal.ID) || null,
+        deal.TITLE || null,
+        deal.STAGE_ID || null,
+        parseFloat(deal.OPPORTUNITY) || null,
+        deal.CURRENCY_ID || null,
+        parseInt(deal.ASSIGNED_BY_ID) || null,
+        parseInt(deal.CREATED_BY_ID) || null,
+        deal.SOURCE_ID || null,
+        parseInt(deal.COMPANY_ID) || null,
+        parseInt(deal.CONTACT_ID) || null,
+        deal.DATE_CREATE || null,
+        deal.DATE_MODIFY || null,
+        deal.CLOSED_DATE || null,
+        deal.CLOSED === 'Y',
+        deal.IS_RETURN_CUSTOMER === 'Y',
+        deal.LAST_ACTIVITY_TIME || null
       ];
 
       // Roda o comando no banco de dados!
@@ -204,18 +221,16 @@ app.post('/', async (req, res) => {
 
       console.log(`--- 6. ✅ SUCESSO! Deal ${deal.ID} salvo/atualizado no banco! ---`);
 
-      // --- FIM DO BLOCO DO INSERT NO BANCO ---
+    } else {
+      // Evento desconhecido (ex: ONCRMDEALRESTORE, etc.)
+      console.log(`--- 4. Evento '${evento}' recebido, mas não há ação configurada para ele. Ignorando. ---`);
+    }
 
-
-    } catch (error) {
-      console.log("Erro GIGANTE ao tentar fazer o 'fetch' para o Bitrix:", error);
-    } // se qualquer coisa falhar la dentro do try, ele pula direto pra ca e mostra o erro, porem o servidor não quebra
-    
-    // ---  FIM DA SUA NOVA DEMANDA  ---
-
-  } else {
-    console.log("Nenhum 'event' encontrado nos dados recebidos.");
-  } //Esse else é o par la do meu primeiro IF,  ele diz que se la na linha do IF não tiver nenhum evento, ele avisa para nós que o webhook veio vazio, e não faz mais nada
+  } catch (error) {
+    // Erro GIGANTE (ex: falha de conexão com o banco, erro de sintaxe SQL, etc.)
+    console.log(`--- ❌ ERRO GIGANTE no processamento do evento '${evento}' para o ID ${dealId}: ---`, error);
+  }
+  
 });
 
 // 9. Ligamos o servidor!
