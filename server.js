@@ -313,7 +313,7 @@ app.post('/', async (req, res) => {
         parseInt(deal.CONTACT_ID) || null,          // $10 - contact_id
         deal.DATE_CREATE || null,                   // $11 - date_create (PostgreSQL entende esse formato!)
         deal.DATE_MODIFY || null,                   // $12 - date_modify
-        deal.CLOSED === 'Y'                        // $14 - closed (Converte "Y" para TRUE)
+        deal.CLOSED === 'Y'                         // $14 - closed (Converte "Y" para TRUE)
       ];
       
 
