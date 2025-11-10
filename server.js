@@ -49,6 +49,14 @@ const pool = new Pool({
   }
 });
 
+// Variavel global para guardar nossos "dicionarios" de traducao
+// Vamos preencher isso quando o servidor ligar
+let listFieldMaps = {
+  tipoRetorno: {},
+  tipoDemanda: {},
+  executor: {}
+};
+
 // --- (Fim) BLOCO DE CONEXÃO COM O BANCO DE DADOS ---
 
 
@@ -59,10 +67,54 @@ const pool = new Pool({
 (async () => {
   try {
     // Tenta "pingar" o banco para ver se a conexão deu certo
-    // (Pede ao Pool uma conexão, envia 'SELECT 1' e a devolve)
     await pool.query('SELECT 1');
     console.log('--- CONEXAO COM O BANCO POSTGRESQL BEM-SUCEDIDA! ---');
-    } catch (err) {
+
+    // --- (INICIO) NOVO BLOCO: CARREGAR DICIONARIOS UF ---
+    console.log('--- Iniciando carregamento dos dicionarios de campos (UF)... ---');
+    
+    // 1. Monta a URL para o metodo 'crm.deal.fields'
+    const fieldsUrl = `${process.env.BITRIX_WEBHOOK_URL}/crm.deal.fields.json`;
+    
+    // 2. Busca os dados de TODOS os campos
+    const response = await fetch(fieldsUrl);
+    if (!response.ok) throw new Error(`Erro ao buscar campos: ${response.status}`);
+    
+    const fieldsData = await response.json();
+    const allFields = fieldsData.result; // Objeto com todos os campos
+
+    // 3. Define os campos de "Lista" que queremos traduzir
+    const fieldsToMap = {
+      'UF_CRM_1761285087347': 'tipoRetorno', // TIPO DE RETORNO
+      'UF_CRM_1761285615045': 'tipoDemanda', // TIPO DE DEMANDA
+      'UF_CRM_1761287067': 'executor'        // EXECUTOR
+    };
+
+    // 4. Loop para criar os mapas (dicionarios)
+    for (const fieldID in fieldsToMap) {
+      if (allFields[fieldID] && allFields[fieldID].items) {
+        const mapName = fieldsToMap[fieldID]; // ex: 'tipoRetorno'
+        
+        // Converte o array (ex: [{ID: "192", VALUE: "Texto"}])
+        // em um objeto/mapa (ex: {"192": "Texto"})
+        const newMap = allFields[fieldID].items.reduce((acc, item) => {
+          acc[item.ID] = item.VALUE; // { "ID_DA_OPCAO": "TEXTO_DA_OPCAO" }
+          return acc;
+        }, {});
+        
+        // 5. Salva o mapa na nossa variavel global
+        listFieldMaps[mapName] = newMap;
+        console.log(`--- Dicionario para '${mapName}' carregado com ${Object.keys(newMap).length} itens. ---`);
+      
+      } else {
+        // Aviso caso o campo nao seja encontrado ou nao seja uma lista
+        console.log(`--- AVISO: Nao foi possivel encontrar "items" para o campo ${fieldID} ---`);
+      }
+    }
+    console.log('--- Dicionarios de campos (UF) carregados com sucesso! ---');
+    // --- (FIM) NOVO BLOCO: CARREGAR DICIONARIOS UF ---
+
+  } catch (err) {
     // Se der erro (senha, certificado, etc.), ele avisa no log.
     console.log('--- ERRO AO CONECTAR COM O BANCO: ---', err);
   }
@@ -279,10 +331,11 @@ app.post('/', async (req, res) => {
         INSERT INTO deal_activity (
           deal_id, title, stage_id, opportunity_value, assigned_by_id,
           created_by_id, source_id, company_id, contact_id, date_create,
-          date_modify, closed
+          date_modify, closed, prioridade, prazo_entrega, tipo_retorno, tipo_demanda, cod_executor, executor, motivo_revisao, descricao_conclusao, motivo_declinio
         )
         VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+          $13, $14, $15, $16, $17, $18, $19, $20, $21
         )
         ON CONFLICT (deal_id) DO UPDATE SET
           title = EXCLUDED.title,
@@ -295,25 +348,65 @@ app.post('/', async (req, res) => {
           contact_id = EXCLUDED.contact_id,
           date_create = EXCLUDED.date_create,
           date_modify = EXCLUDED.date_modify,
-          closed = EXCLUDED.closed;
+          closed = EXCLUDED.closed,
+          -- (Novos campos UF!)
+          prioridade = EXCLUDED.prioridade,
+          prazo_entrega = EXCLUDED.prazo_entrega,
+          tipo_retorno = EXCLUDED.tipo_retorno,
+          tipo_demanda = EXCLUDED.tipo_demanda,
+          cod_executor = EXCLUDED.cod_executor,
+          executor = EXCLUDED.executor,
+          motivo_revisao = EXCLUDED.motivo_revisao,
+          descricao_conclusao = EXCLUDED.descricao_conclusao,
+          motivo_declinio = EXCLUDED.motivo_declinio;
       `;
 
-      // Prepara o array de valores, na ordem certinha dos "$1, $2..."
-      // (Usamos "|| null" para garantir que, se um campo vier vazio, ele salve NULL no banco)
-      // O campo "deal.TITLE" já estará atualizado com o emoji, se necessário!
+      // Prepara o array de valores (Versão com 21 colunas, com TRADUCAO!)
+      // ALERTAAAAAAA!!! A ORDEM AQUI TEM QUE SER IDÊNTICA AOS "$1, $2..." DA QUERY!
       const values = [
+        // --- Bloco Padrão (12) ---
         parseInt(deal.ID) || null,                  // $1 - deal_id
-        deal.TITLE || null,                         // $2 - title (JÁ ATUALIZADO PELA AUTOMAÇÃO!)
+        deal.TITLE || null,                         // $2 - title
         deal.STAGE_ID || null,                      // $3 - stage_id
-        parseFloat(deal.OPPORTUNITY) || null,       // $4 - opportunity_value (Bitrix manda como string)
-        parseInt(deal.ASSIGNED_BY_ID) || null,      // $6 - assigned_by_id
-        parseInt(deal.CREATED_BY_ID) || null,       // $7 - created_by_id
-        deal.SOURCE_ID || null,                     // $8 - source_id
-        parseInt(deal.COMPANY_ID) || null,          // $9 - company_id
-        parseInt(deal.CONTACT_ID) || null,          // $10 - contact_id
-        deal.DATE_CREATE || null,                   // $11 - date_create (PostgreSQL entende esse formato!)
-        deal.DATE_MODIFY || null,                   // $12 - date_modify
-        deal.CLOSED === 'Y'                         // $14 - closed (Converte "Y" para TRUE)
+        parseFloat(deal.OPPORTUNITY) || null,       // $4 - opportunity_value
+        parseInt(deal.ASSIGNED_BY_ID) || null,      // $5 - assigned_by_id
+        parseInt(deal.CREATED_BY_ID) || null,       // $6 - created_by_id
+        deal.SOURCE_ID || null,                     // $7 - source_id
+        parseInt(deal.COMPANY_ID) || null,          // $8 - company_id
+        parseInt(deal.CONTACT_ID) || null,          // $9 - contact_id
+        deal.DATE_CREATE || null,                   // $10 - date_create
+        deal.DATE_MODIFY || null,                   // $11 - date_modify
+        deal.CLOSED === 'Y',                        // $12 - closed
+
+        // --- Bloco Novo UF (9) ---
+        
+        // $13 - prioridade (Traduzido de ID para BOOLEAN)
+        deal['UF_CRM_1761801450'] === '185',
+        
+        // $14 - prazo_entrega (Data/Serie)
+        deal['UF_CRM_1761286788'] || null,
+        
+        // $15 - tipo_retorno (Traduzido de ID para TEXTO usando o dicionario!)
+        // (ex: listFieldMaps.tipoRetorno["192"] || null)
+        listFieldMaps.tipoRetorno?.[deal['UF_CRM_1761285087347']] || null,
+        
+        // $16 - tipo_demanda (Traduzido de ID para TEXTO usando o dicionario!)
+        listFieldMaps.tipoDemanda?.[deal['UF_CRM_1761285615045']] || null,
+        
+        // $17 - cod_executor (String)
+        deal['UF_CRM_1761700821514'] || null,
+        
+        // $18 - executor (Traduzido de ID para TEXTO usando o dicionario!)
+        listFieldMaps.executor?.[deal['UF_CRM_1761287067']] || null,
+        
+        // $19 - motivo_revisao (String/Text)
+        deal['UF_CRM_1761801018723'] || null,
+        
+        // $20 - descricao_conclusao (String/Text)
+        deal['UF_CRM_1761288771741'] || null,
+        
+        // $21 - motivo_declinio (String/Text)
+        deal['UF_CRM_1761702301803'] || null
       ];
       
 
