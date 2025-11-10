@@ -277,18 +277,17 @@ app.post('/', async (req, res) => {
       // Isso é ESSENCIAL para a pipeline, para não dar erro de "chave duplicada"!
       const upsertQuery = `
         INSERT INTO deal_activity (
-          deal_id, title, stage_id, opportunity_value, currency, assigned_by_id,
+          deal_id, title, stage_id, opportunity_value, assigned_by_id,
           created_by_id, source_id, company_id, contact_id, date_create,
-          date_modify, closed_date, closed, is_return_customer, last_activity_time
+          date_modify, closed
         )
         VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
         )
         ON CONFLICT (deal_id) DO UPDATE SET
           title = EXCLUDED.title,
           stage_id = EXCLUDED.stage_id,
           opportunity_value = EXCLUDED.opportunity_value,
-          currency = EXCLUDED.currency,
           assigned_by_id = EXCLUDED.assigned_by_id,
           created_by_id = EXCLUDED.created_by_id,
           source_id = EXCLUDED.source_id,
@@ -296,10 +295,7 @@ app.post('/', async (req, res) => {
           contact_id = EXCLUDED.contact_id,
           date_create = EXCLUDED.date_create,
           date_modify = EXCLUDED.date_modify,
-          closed_date = EXCLUDED.closed_date,
-          closed = EXCLUDED.closed,
-          is_return_customer = EXCLUDED.is_return_customer,
-          last_activity_time = EXCLUDED.last_activity_time;
+          closed = EXCLUDED.closed;
       `;
 
       // Prepara o array de valores, na ordem certinha dos "$1, $2..."
@@ -310,7 +306,6 @@ app.post('/', async (req, res) => {
         deal.TITLE || null,                         // $2 - title (JÁ ATUALIZADO PELA AUTOMAÇÃO!)
         deal.STAGE_ID || null,                      // $3 - stage_id
         parseFloat(deal.OPPORTUNITY) || null,       // $4 - opportunity_value (Bitrix manda como string)
-        deal.CURRENCY_ID || null,                   // $5 - currency
         parseInt(deal.ASSIGNED_BY_ID) || null,      // $6 - assigned_by_id
         parseInt(deal.CREATED_BY_ID) || null,       // $7 - created_by_id
         deal.SOURCE_ID || null,                     // $8 - source_id
@@ -318,11 +313,9 @@ app.post('/', async (req, res) => {
         parseInt(deal.CONTACT_ID) || null,          // $10 - contact_id
         deal.DATE_CREATE || null,                   // $11 - date_create (PostgreSQL entende esse formato!)
         deal.DATE_MODIFY || null,                   // $12 - date_modify
-        deal.CLOSED_DATE || null,                   // $13 - closed_date
-        deal.CLOSED === 'Y',                        // $14 - closed (Converte "Y" para TRUE)
-        deal.IS_RETURN_CUSTOMER === 'Y',            // $15 - is_return_customer
-        deal.LAST_ACTIVITY_TIME || null             // $16 - last_activity_time
+        deal.CLOSED === 'Y'                        // $14 - closed (Converte "Y" para TRUE)
       ];
+      
 
       // Roda o comando no banco de dados!
       await pool.query(upsertQuery, values);
