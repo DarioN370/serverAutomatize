@@ -188,7 +188,7 @@ router.post('/', async (req, res) => {
         listFieldMaps.tipoRetorno?.[deal['UF_CRM_1761285087347']] || null, // $15 - tipo_retorno (Traduzido)
         listFieldMaps.tipoDemanda?.[deal['UF_CRM_1761285615045']] || null, // $16 - tipo_demanda (Traduzido)
         deal['UF_CRM_1761700821514'] || null, // $17 - cod_executor
-        listFieldMaps.executor?.[deal['UF_CRM_1761287067']] || null, // $18 - executor (Traduzido)
+        deal['UF_CRM_1761287067'] || null, // $18 - executor (Agora salvando o TEXTO "cru")
         deal['UF_CRM_1761801018723'] || null, // $19 - motivo_revisao
         deal['UF_CRM_1761288771741'] || null, // $20 - descricao_conclusao
         deal['UF_CRM_1761702301803'] || null  // $21 - motivo_declinio

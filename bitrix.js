@@ -37,7 +37,6 @@ export async function loadBitrixDictionaries() {
     const fieldsToMap = {
       'UF_CRM_1761285087347': 'tipoRetorno', // TIPO DE RETORNO
       'UF_CRM_1761285615045': 'tipoDemanda', // TIPO DE DEMANDA
-      'UF_CRM_1761287067': 'executor'        // EXECUTOR
     };
 
     // 4. Faço um loop para criar os mapas (dicionários)
