@@ -94,6 +94,83 @@ router.post('/', async (req, res) => {
       
       const deal = dealDetails.result; 
 
+      // --- INÍCIO DA AUTOMAÇÃO "TAGS DE EMPRESA" (JIT) ---
+
+      // Esta automação SÓ RODA NA CRIAÇÃO de um deal
+      if (evento === 'ONCRMDEALADD') {
+        const companyId = deal.COMPANY_ID;
+        let novoTitulo = deal.TITLE; // Começa com o título que o Bitrix deu
+
+        // 1. Verifico se o deal tem uma empresa vinculada
+        if (companyId) {
+          console.log(`--- [AUTOMACAO TAG] Novo deal para Company ID: ${companyId}. Buscando tag... ---`);
+
+          let tag = ''; // Variavel para guardar a tag
+
+          // 2. TENTO ACHAR A EMPRESA NO MEU BANCO
+          const tagQuery = 'SELECT tag_prefix FROM companies WHERE bitrix_company_id = $1';
+          const tagResult = await pool.query(tagQuery, [parseInt(companyId)]);
+
+          // 3. SE EU NÃO ACHEI (rows.length === 0)...
+          if (tagResult.rows.length === 0) {
+            console.log(`--- [AUTOMACAO TAG] Empresa ${companyId} nao encontrada no banco. Buscando no Bitrix... ---`);
+
+            // 3a. BUSCO OS DADOS DA EMPRESA NO BITRIX
+            const companyUrl = `${process.env.BITRIX_WEBHOOK_URL}/crm.company.get?id=${companyId}`;
+            const companyResponse = await fetch(companyUrl);
+
+            if (companyResponse.ok) {
+              const companyDetails = await companyResponse.json();
+              const company = companyDetails.result;
+
+              // 3b. PEGO A TAG (O ID QUE VOCÊ ACHOU!)
+              const companyTag = company['UF_CRM_1763424498916']; 
+
+              if (companyTag) {
+                // 3c. SALVO A NOVA EMPRESA NO MEU BANCO (para o futuro!)
+                const insertCompanyQuery = 'INSERT INTO companies (bitrix_company_id, company_name, tag_prefix) VALUES ($1, $2, $3)';
+                await pool.query(insertCompanyQuery, [parseInt(company.ID), company.TITLE, companyTag]);
+                tag = companyTag; // Achei a tag!
+                console.log(`--- [AUTOMACAO TAG] Empresa ${company.ID} (${companyTag}) salva no banco! ---`);
+              } else {
+                console.log(`--- [AUTOMACAO TAG] Empresa ${company.ID} encontrada, mas o campo "Tag" esta vazio. ---`);
+              }
+            }
+          } else {
+            // 3d. SE EU ACHEI NO BANCO, SÓ USO A TAG
+            tag = tagResult.rows[0].tag_prefix;
+            console.log(`--- [AUTOMACAO TAG] Tag "${tag}" encontrada no banco. ---`);
+          }
+
+          // 4. SE EU TENHO UMA TAG (seja nova ou antiga)...
+          if (tag) {
+            // 5. CONTO OS DEALS DESSA EMPRESA (para o contador)
+            // (Conto quantos deals ESSA empresa JÁ TEM salvos no meu banco 'deal_activity')
+            const countQuery = 'SELECT COUNT(*) FROM deal_activity WHERE company_id = $1';
+            const countResult = await pool.query(countQuery, [parseInt(companyId)]);
+
+            // O contador é +1 (o primeiro deal terá count 0, 0+1=1. O segundo terá 1, 1+1=2)
+            const novoContador = parseInt(countResult.rows[0].count) + 1;
+
+            // 6. CRIO O NOVO TÍTULO (ex: "APP 1", "APP 2")
+            novoTitulo = `${tag} ${novoContador}`;
+
+            // 7. ATUALIZO O BITRIX! (Usando nossa ferramenta!)
+            await updateBitrixTitle(dealId, novoTitulo);
+
+            // 8. ATUALIZO O OBJETO LOCAL
+            // (Isso é CRÍTICO! Para a automação do emoji e o UPSERT
+            // pegarem o titulo NOVO que a gente acabou de criar!)
+            deal.TITLE = novoTitulo; 
+            console.log(`--- [AUTOMACAO TAG] Titulo do Deal ${dealId} atualizado para: ${novoTitulo} ---`);
+
+          } else {
+             console.log(`--- [AUTOMACAO TAG] Nenhuma tag encontrada para o Company ID: ${companyId}. Titulo nao sera alterado. ---`);
+          }
+        }
+      }
+      // --- FIM DA AUTOMAÇÃO "TAGS DE EMPRESA" ---
+
       // --- INÍCIO DA AUTOMAÇÃO "PRIORIDADE MAXIMA" ---
       
       const emojiPrioridade = '♨️ '; 
