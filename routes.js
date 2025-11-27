@@ -238,7 +238,7 @@ router.post('/', async (req, res) => {
             executor = EXCLUDED.executor,
             motivo_revisao = EXCLUDED.motivo_revisao,
             descricao_conclusao = EXCLUDED.descricao_conclusao,
-            motivo_declinio = EXCLUDED.motivo_declinio;
+            motivo_declinio = EXCLUDED.motivo_declinio,
             category_id = EXCLUDED.category_id;
         `;
 
