@@ -280,31 +280,87 @@ router.post('/', async (req, res) => {
       // Fim da Rota B
       
     // ============================================
-    // ROTA 2: É UM EVENTO DE DELETE DE EMPRESA (COMPANY) - (A NOVA LÓGICA!)
+    // ROTA 2: EVENTOS DE EMPRESA (COMPANY) - (ADD, UPDATE, DELETE)
     // ============================================
-    } else if (evento === 'ONCRMCOMPANYDELETE') {
-      
-      // O ID da empresa vem em um lugar diferente (geralmente data.ID ou data.data.ID)
+    } else if (evento.startsWith('ONCRMCOMPANY')) {
+
       const companyId = data.data?.FIELDS?.ID;
 
       if (!companyId) {
-         console.log("--- 3. Evento ONCRMCOMPANYDELETE, mas nao foi possivel encontrar o ID da Empresa. Ignorando. ---");
+         console.log(`--- Evento ${evento}, mas sem ID de Empresa. Ignorando. ---`);
          return;
       }
       
-      console.log(`--- 3. Evento de EMPRESA identificado: ${evento}, ID da Empresa: ${companyId} ---`);
-      console.log(`--- 4. Iniciando DELECAO para a Empresa ID: ${companyId} da tabela 'companies' ---`);
-      
-      // Roda o DELETE na sua tabela 'companies'
-      const deleteQuery = 'DELETE FROM companies WHERE bitrix_company_id = $1';
-      const result = await pool.query(deleteQuery, [parseInt(companyId)]);
+      console.log(`--- Evento de EMPRESA identificado: ${evento}, ID: ${companyId} ---`);
 
-      if (result.rowCount > 0) {
-        console.log(`--- 5. SUCESSO! Empresa ${companyId} deletada da tabela 'companies'! ---`);
-      } else {
-        console.log(`--- 5. AVISO! Empresa ${companyId} para deletar nao foi encontrada no banco 'companies'. ---`);
+      // ----------------------------------------------------
+      // CASO A: A empresa foi DELETADA
+      // ----------------------------------------------------
+      if (evento === 'ONCRMCOMPANYDELETE') {
+         console.log(`--- Iniciando DELECAO para a Empresa ID: ${companyId} ---`);
+         const deleteQuery = 'DELETE FROM companies WHERE bitrix_company_id = $1';
+         const result = await pool.query(deleteQuery, [parseInt(companyId)]);
+
+         if (result.rowCount > 0) {
+           console.log(`--- SUCESSO! Empresa ${companyId} removida do banco. ---`);
+         } else {
+           console.log(`--- AVISO! Empresa ${companyId} nao encontrada para deletar. ---`);
+         }
+
+      // ----------------------------------------------------
+      // CASO B: A empresa foi CRIADA ou ATUALIZADA
+      // ----------------------------------------------------
+      } else if (evento === 'ONCRMCOMPANYADD' || evento === 'ONCRMCOMPANYUPDATE') {
+         
+         console.log(`--- Buscando dados atualizados da Empresa ${companyId} no Bitrix... ---`);
+         
+         // 1. Busco os detalhes no Bitrix para pegar o Nome e a Tag
+         const companyUrl = `${process.env.BITRIX_WEBHOOK_URL}/crm.company.get?id=${companyId}`;
+         const response = await fetch(companyUrl);
+         
+         if (!response.ok) {
+            console.log(`--- ERRO ao buscar empresa no Bitrix. Status: ${response.status} ---`);
+            return;
+         }
+
+         const companyData = await response.json();
+         const company = companyData.result;
+
+         if (!company) {
+            console.log(`--- ERRO: Bitrix nao retornou dados para a empresa ${companyId}. ---`);
+            return;
+         }
+
+         // 2. Extraio os dados que me interessam
+         // O campo da TAG que você mapeou antes: UF_CRM_1763424498916
+         const nomeEmpresa = company.TITLE || 'Sem Nome';
+         const tagPrefix = company['UF_CRM_1763424498916'] || null;
+
+         console.log(`--- Dados obtidos: Nome="${nomeEmpresa}", Tag="${tagPrefix}". Salvando no Banco... ---`);
+
+         // 3. Verifico se já existe no banco (Lógica manual de Upsert para garantir)
+         const checkQuery = 'SELECT id FROM companies WHERE bitrix_company_id = $1';
+         const checkResult = await pool.query(checkQuery, [parseInt(companyId)]);
+
+         if (checkResult.rows.length > 0) {
+            // --- UPDATE (Se já existe) ---
+            const updateQuery = `
+               UPDATE companies 
+               SET company_name = $1, tag_prefix = $2 
+               WHERE bitrix_company_id = $3
+            `;
+            await pool.query(updateQuery, [nomeEmpresa, tagPrefix, parseInt(companyId)]);
+            console.log(`--- SUCESSO! Empresa ${companyId} ATUALIZADA no banco. ---`);
+         } else {
+            // --- INSERT (Se não existe) ---
+            const insertQuery = `
+               INSERT INTO companies (bitrix_company_id, company_name, tag_prefix)
+               VALUES ($1, $2, $3)
+            `;
+            await pool.query(insertQuery, [parseInt(companyId), nomeEmpresa, tagPrefix]);
+            console.log(`--- SUCESSO! Empresa ${companyId} CRIADA no banco. ---`);
+         }
       }
-    
     // ============================================
     // ROTA 3: OUTROS EVENTOS (IGNORADOS)
     // ============================================
