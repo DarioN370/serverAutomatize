@@ -212,11 +212,11 @@ router.post('/', async (req, res) => {
             created_by_id, source_id, company_id, contact_id, date_create,
             date_modify, closed,
             prioridade, prazo_entrega, tipo_retorno, tipo_demanda, cod_executor,
-            executor, motivo_revisao, descricao_conclusao, motivo_declinio
+            executor, motivo_revisao, descricao_conclusao, motivo_declinio, category_id
           )
           VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-            $13, $14, $15, $16, $17, $18, $19, $20, $21
+            $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
           )
           ON CONFLICT (deal_id) DO UPDATE SET
             title = EXCLUDED.title,
@@ -239,6 +239,7 @@ router.post('/', async (req, res) => {
             motivo_revisao = EXCLUDED.motivo_revisao,
             descricao_conclusao = EXCLUDED.descricao_conclusao,
             motivo_declinio = EXCLUDED.motivo_declinio;
+            category_id = EXCLUDED.category_id;
         `;
 
         const values = [
@@ -264,7 +265,8 @@ router.post('/', async (req, res) => {
           deal['UF_CRM_1761287067'] || null, // $18 - executor (Corrigido: salvando o ID cru)
           deal['UF_CRM_1761801018723'] || null, // $19 - motivo_revisao
           deal['UF_CRM_1761288771741'] || null, // $20 - descricao_conclusao
-          deal['UF_CRM_1761702301803'] || null  // $21 - motivo_declinio
+          deal['UF_CRM_1761702301803'] || null,  // $21 - motivo_declinio
+          parseInt(deal.CATEGORY_ID) || 0 // $22 - ID do Funil category_id
         ];
         
         await pool.query(upsertQuery, values);
